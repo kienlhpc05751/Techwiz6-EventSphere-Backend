@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FastEndpoints" Version="7.0.1" />
+        <PackageReference Include="FastEndpoints.Security" Version="7.0.1" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.4"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="frontend\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Remove="frontend\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Remove="frontend\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="frontend\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="frontend\package.json" />
+      <_ContentIncludedByDefault Remove="frontend\tsconfig.json" />
+    </ItemGroup>
+</Project>
