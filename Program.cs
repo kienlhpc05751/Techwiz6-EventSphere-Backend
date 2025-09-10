@@ -37,6 +37,7 @@ builder.Services.AddAuthenticationJwtBearer(s => s.SigningKey = builder.Configur
 
 string? connectionString = builder.Configuration.GetConnectionString("MySQL");
 builder.Services.AddMySql<EventSphereDbContext>(connectionString, ServerVersion.AutoDetect(connectionString));
+builder.Services.AddTransient<EventSphereSeeder>();
 
 builder.Services.AddCors(options =>
 {
@@ -57,6 +58,9 @@ using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<EventSphereDbContext>();
     context.Database.EnsureCreated();
+    
+    var seeder = scope.ServiceProvider.GetRequiredService<EventSphereSeeder>();
+    seeder.Seed();
 }
 
 app.UseDefaultFiles().UseStaticFiles();
