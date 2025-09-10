@@ -1,29 +1,80 @@
+using EventSphere.Db;
+using FastEndpoints;
+using FastEndpoints.Security;
+using FastEndpoints.Swagger;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using NSwag;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddAuthenticationJwtBearer(s => s.SigningKey = builder.Configuration["Jwt:Key"], opt =>
+{
+   opt.Events = new JwtBearerEvents
+   {
+       OnMessageReceived = ctx =>
+       {
+           ctx.Request.Cookies.TryGetValue(builder.Configuration["Jwt:CookieName"]!, out string? accessToken);
+           if (!string.IsNullOrEmpty(accessToken)) ctx.Token = accessToken;
+           return Task.CompletedTask;
+       }
+   };
+})
+.AddAuthorization()
+.AddFastEndpoints()
+.SwaggerDocument(opt =>
+{
+    opt.DocumentSettings = doc =>
+    {
+        doc.MarkNonNullablePropsAsRequired();
+        doc.AddAuth("JwtCookie", new OpenApiSecurityScheme { Name = "accessToken", In = OpenApiSecurityApiKeyLocation.Cookie, Type = OpenApiSecuritySchemeType.ApiKey });
+        doc.DocumentName = "v1";
+        // doc.SchemaSettings.SchemaNameGenerator = new SchemaNameGenerator();
+    };
+    opt.EnableJWTBearerAuth = false;
+    opt.ShortSchemaNames = true;
+});
+
+string? connectionString = builder.Configuration.GetConnectionString("MySQL");
+builder.Services.AddMySql<EventSphereDbContext>(connectionString, ServerVersion.AutoDetect(connectionString));
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        string[]? websites = builder.Configuration.GetSection("Endpoints:Website").Get<string[]>();
+        
+        if (websites is not null)
+        {
+            policy.WithOrigins(websites).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+        }
+    });
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<EventSphereDbContext>();
+    context.Database.EnsureCreated();
+}
+
+app.UseDefaultFiles().UseStaticFiles();
+app.MapFallbackToFile("index.html");
+app.UseCors();
+
+app.UseAuthentication().UseAuthorization();
+
+app.UseFastEndpoints(opt =>
+{
+   opt.Endpoints.RoutePrefix = "api";
+   opt.Endpoints.Configurator = conf => { conf.Description(desc => { desc.WithName(conf.EndpointType.Namespace!.Split('.')[^1]); }); };
+   opt.Validation.EnableDataAnnotationsSupport = true;
+});
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwaggerGen();
 }
-
-var summaries = new[] { "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching" };
-
-app.MapGet("/weatherforecast", () =>
-   {
-       var forecast = Enumerable.Range(1, 5).Select(index => new WeatherForecast(DateOnly.FromDateTime(DateTime.Now.AddDays(index)), Random.Shared.Next(-20, 55), summaries[Random.Shared.Next(summaries.Length)])).ToArray();
-       return forecast;
-   })
-   .WithName("GetWeatherForecast");
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
